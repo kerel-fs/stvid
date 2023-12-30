@@ -558,6 +558,8 @@ if __name__ == '__main__':
                              default=False,
                              help="Testing mode - Start capturing immediately for (optional) seconds",
                              metavar="s")
+    conf_parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                             default='INFO', help='Set the log level (default: INFO)')
     conf_parser.add_argument("-l", "--live", action="store_true",
                              help="Display live image while capturing")
 
@@ -594,7 +596,7 @@ if __name__ == '__main__':
     consoleHandler = logging.StreamHandler(sys.stdout)
     consoleHandler.setFormatter(logFormatter)
     logger.addHandler(consoleHandler)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(args.log_level)
 
     logger.info("Using config: %s" % conf_file)
 
