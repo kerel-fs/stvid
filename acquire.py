@@ -576,7 +576,7 @@ if __name__ == '__main__':
         sys.exit()
 
     # Setup logging
-    logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] " +
+    logFormatter = logging.Formatter("%(asctime)s [%(module)-8.8s] " +
                                      "[%(levelname)-5.5s]  %(message)s")
     logger = logging.getLogger()
 
