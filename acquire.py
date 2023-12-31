@@ -496,7 +496,7 @@ if __name__ == '__main__':
         sys.exit()
 
     # Setup logging
-    logFormatter = logging.Formatter("%(asctime)s [%(module)-8.8s] " +
+    logFormatter = logging.Formatter("%(asctime)s [%(processName)-8.8s] " +
                                      "[%(levelname)-5.5s]  %(message)s")
     logger = logging.getLogger()
 
@@ -608,18 +608,22 @@ if __name__ == '__main__':
     pcompress = multiprocessing.Process(target=compress,
                                         args=(image_queue, z1, t1, z2, t2, nx, ny,
                                               nz, tend.unix, path, device_id, cfg))
+                                        name="compress")
     if camera_type == "PI":
         pcapture = multiprocessing.Process(target=capture_pi,
                                            args=(image_queue, z1, t1, z2, t2,
-                                                 nx, ny, nz, tend.unix, device_id, live, cfg))
+                                                 nx, ny, nz, tend.unix, device_id, live, cfg),
+                                           name="capture")
     elif camera_type == "CV2":
         pcapture = multiprocessing.Process(target=capture_cv2,
                                            args=(image_queue, z1, t1, z2, t2,
-                                                 nx, ny, nz, tend.unix, device_id, live, cfg))
+                                                 nx, ny, nz, tend.unix, device_id, live, cfg),
+                                           name="capture")
     elif camera_type == "ASI":
         pcapture = multiprocessing.Process(target=capture_generic,
                                            args=(image_queue, z1, t1, z2, t2,
-                                                 nx, ny, nz, tend.unix, device_id, live, cfg))
+                                                 nx, ny, nz, tend.unix, device_id, live, cfg),
+                                           name="capture")
 
     # Start
     pcapture.start()
