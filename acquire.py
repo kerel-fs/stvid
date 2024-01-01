@@ -287,7 +287,7 @@ def capture_generic(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, li
         logger.error("%s" % e)
         reason = "Wrong image dimensions? Fix nx, ny in config."
     except MemoryError as e:
-        logger.error("Capture: Memory error %s" % e)
+        reason = f"Memory error {str(e)}"
     finally:
         # End capture
         logger.info("Capture: %s - Exiting" % reason)
