@@ -14,7 +14,7 @@ from stvid.utils import get_sunset_and_sunrise
 import logging
 import configparser
 import argparse
-from stvid.camera import ASICamera
+from stvid.camera import ASICamera, CameraLostFrameError, ConfigError, NoCameraFoundError
 
 # Capture images from pi
 def capture_pi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, cfg):
