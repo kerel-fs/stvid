@@ -13,6 +13,15 @@ from spacetrack import SpaceTrackClient
 from stvid.config import load_config
 
 
+from astropy.utils.iers import IERS_LEAP_SECOND_URL, IERS_A_URL
+from astropy.utils.data import download_file
+
+def update_leapseconds():
+    download_file(IERS_LEAP_SECOND_URL, cache=True, show_progress=True)
+
+def update_iers_a():
+    download_file(IERS_A_URL, cache=True, show_progress=True)
+
 if __name__ == '__main__':
     # Read commandline options
     conf_parser = argparse.ArgumentParser(description="Update TLEs from" +
@@ -116,3 +125,9 @@ if __name__ == '__main__':
         for fname in catalogs:
             with open(fname) as infile:
                 outfile.write(infile.read())
+
+    print("Update LeapSeconds.dat (released ~biannually)")
+    update_leapseconds()
+
+    print("Update finals2000A.all (released weekly)")
+    update_iers_a()
