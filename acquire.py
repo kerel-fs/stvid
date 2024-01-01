@@ -607,7 +607,7 @@ if __name__ == '__main__':
     # Set processes
     pcompress = multiprocessing.Process(target=compress,
                                         args=(image_queue, z1, t1, z2, t2, nx, ny,
-                                              nz, tend.unix, path, device_id, cfg))
+                                              nz, tend.unix, path, device_id, cfg),
                                         name="compress")
     if camera_type == "PI":
         pcapture = multiprocessing.Process(target=capture_pi,
