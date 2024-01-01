@@ -342,6 +342,10 @@ def compress(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, path, device_id, cfg
                 filepath = os.path.join(path, obsid)
                 logger.info("Storing files in %s" % filepath)
 
+                with open(os.path.join(controlpath, "current-obsid.txt"), "w") as fp:
+                    fp.write(obsid)
+                    fp.write("\n")
+
                 # Create output directory
                 if not os.path.exists(filepath):
                     try:
