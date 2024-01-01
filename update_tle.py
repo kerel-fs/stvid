@@ -26,16 +26,19 @@ if __name__ == '__main__':
     conf_parser = argparse.ArgumentParser(description="Update TLEs from" +
                                                       " online sources")
     conf_parser.add_argument("-c", "--conf_file",
-                             help="Specify configuration file. If no file" +
+                             help="Specify configuration file(s). If no file" +
                              " is specified 'configuration.ini' is used.",
+                             action="append",
+                             nargs="?",
                              metavar="FILE")
+
 
     args = conf_parser.parse_args()
 
     # Process commandline options and parse configuration
     cfg = configparser.ConfigParser(inline_comment_prefixes=("#", ";"))
     if args.conf_file:
-        cfg.read([args.conf_file])
+        cfg.read(args.conf_file)
     else:
         cfg.read("configuration.ini")
 
