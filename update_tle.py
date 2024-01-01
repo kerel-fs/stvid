@@ -42,11 +42,11 @@ if __name__ == '__main__':
     else:
         cfg.read("configuration.ini")
 
-    # Create TLE locatio
+    # Create TLE location
     tle_path = cfg.get("Elements", "tlepath")
     if not os.path.exists(tle_path):
         os.makedirs(tle_path)
-    
+
     now = datetime.datetime.utcnow()
     time = now.strftime("%Y%m%d_%H%M%S")
 
@@ -115,7 +115,7 @@ if __name__ == '__main__':
         fp.write(lines)
 
     copyfile(starlink_tle, os.path.join(tle_path, time + "_starlink.txt"))
-        
+
     print("Get supplemental OneWeb TLEs")
     resp = urlopen("https://celestrak.org/NORAD/elements/supplemental/sup-gp.php?FILE=oneweb&FORMAT=tle")
     oneweb_tle = os.path.join(tle_path, "oneweb.tle")
