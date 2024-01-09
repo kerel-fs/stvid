@@ -17,6 +17,15 @@ from astropy.io import ascii
 from astropy.table import Table
 from astropy.coordinates import SkyCoord, FK5
 
+from stvid.external import get_bin_path
+
+
+# Make sure the required executables are available
+SATPREDICT = get_bin_path("satpredict")
+HOUGH3DLINES = get_bin_path("hough3dlines")
+SOURCE_EXTRACTOR = get_bin_path(["sextractor", "source-extractor"], debian_package_hint="source-extractor")
+SOLVE_FIELD = get_bin_path("solve-field", debian_package_hint="astrometry.net")
+
 class AstrometricCatalog:
     """AstrometricCatalog class"""
 
@@ -443,7 +452,7 @@ class FourFrame:
                 height = cfg.getfloat("Observer", "height")
 
             # Format command
-            command = f"satpredict -t {nfd} -l {texp} -n {nmjd} -L {lon} -B {lat} -H {height}"
+            command = f"{SATPREDICT} -t {nfd} -l {texp} -n {nmjd} -L {lon} -B {lat} -H {height}"
             command = command + f" -o {outfname} -R {ra0} -D {de0} -r {radius}"
             for key, value in cfg.items("Elements"):
                 if "tlefile" in key:
@@ -567,7 +576,7 @@ class FourFrame:
                 fp.write(f"{x[i]:f},{y[i]:f},{znum[i]:f}\n")
 
         # Run 3D Hough line-finding algorithm
-        command = f"hough3dlines -dx {trkrmin} -minvotes {ntrkmin} -raw {fname}"
+        command = f"{HOUGH3DLINES} -dx {trkrmin} -minvotes {ntrkmin} -raw {fname}"
 
         try:
             output = subprocess.check_output(
@@ -618,7 +627,7 @@ class FourFrame:
         # Skip if file already exists
         if not os.path.exists(outfname):
             # Format command
-            command = f"sextractor {self.fname} -c {conffname} -CATALOG_NAME {outfname}"
+            command = f"{SOURCE_EXTRACTOR} {self.fname} -c {conffname} -CATALOG_NAME {outfname}"
 
 	    # Add sextractor config path to environment
             env = dict(os.environ)
@@ -705,7 +714,7 @@ class FourFrame:
             cmd_args = ""
 
         # Generate command
-        command = f"solve-field {cmd_args} {self.fname}"
+        command = f"{SOLVE_FIELD} {cmd_args} {self.fname}"
 
         # Run command
         try:

@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import print_function
 import subprocess
+from stvid.external import get_bin_path
 from stvid.stio import FourFrame
 from stvid.stio import SatId
 import os
 import tempfile
 
+# Make sure the required executables are available
+SATID = get_bin_path("satid")
+HOUGH3DLINES = get_bin_path("hough3dlines")
+
+
 def generate_satellite_predictions(fname):
     # Format command
-    command = "satid %s %s.png/png" % (fname, fname)
+    command = "%s %s %s.png/png" % (SATID, fname, fname)
 
     # Run command
     output = subprocess.check_output(command,
@@ -41,7 +47,7 @@ def find_hough3d_lines(fname, ntrkmin, trkrmin):
                 f.write("%f,%f,%f\n" % (x[i], y[i], z[i]))
 
         # Run 3D Hough line-finding algorithm
-        command = "hough3dlines -dx %d -minvotes %d %s" % (trkrmin, ntrkmin,
+        command = "%s -dx %d -minvotes %d %s" % (HOUGH3DLINES, trkrmin, ntrkmin,
                                                         tmpfile_path)
         try:
             output = subprocess.check_output(command,

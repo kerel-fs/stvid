@@ -11,6 +11,10 @@ from astropy.time import Time
 from astropy.io import fits
 from astropy.coordinates import SkyCoord, ICRS, FK5
 
+SOURCE_EXTRACTOR = get_bin_path(["sextractor", "source-extractor"], debian_package_hint="source-extractor")
+SOLVE_FIELD = get_bin_path("solve-field", debian_package_hint="astrometry.net")
+
+
 class AstrometricCatalog:
     """AstrometricCatalog class"""
 
@@ -76,7 +80,7 @@ def generate_star_catalog(fname):
     # Skip if file already exists
     if not os.path.exists(outfname):
         # Format command
-        command = f"sextractor {fname} -c {conffname} -CATALOG_NAME {outfname}"
+        command = f"{SOURCE_EXTRACTOR} {fname} -c {conffname} -CATALOG_NAME {outfname}"
 
         # Add sextractor config path to environment
         env = dict(os.environ)
@@ -108,7 +112,7 @@ def plate_solve(fname, cfg, store_as_fname=None):
     froot = os.path.splitext(fname)[0]
         
     # Generate command
-    command = f"solve-field {cmd_args} {fname}"
+    command = f"{SOLVE_FIELD} {cmd_args} {fname}"
 
     # Run command
     try:

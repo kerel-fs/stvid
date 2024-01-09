@@ -11,6 +11,10 @@ from astropy import wcs
 from astropy.coordinates import SkyCoord, FK5, ICRS
 from astropy.time import Time
 from scipy import optimize
+from stvid.external import get_bin_path
+
+# Make sure the 'solve-field' executable is available
+SOLVE_FIELD = get_bin_path("solve-field", debian_package_hint="astrometry.net")
 
 
 # Class for the Tycho 2 catalog
@@ -254,8 +258,8 @@ def generate_reference_with_anet(fname, cmd_args, reffname="test.fits", tempfroo
     ny, nx = hdu[0].data[0].shape
 
     # Generate command
-    command = "solve-field %s -l 20 -O -N %s --crpix-x %d --crpix-y %d -t 1 %s.fits" \
-              % (cmd_args, reffname, nx//2, ny//2, tempfroot)
+    command = "%s %s -l 20 -O -N %s --crpix-x %d --crpix-y %d -t 1 %s.fits" \
+              % (SOLVE_FIELD, cmd_args, reffname, nx//2, ny//2, tempfroot)
 
     # Run command
     try:

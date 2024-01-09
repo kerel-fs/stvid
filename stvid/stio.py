@@ -13,6 +13,10 @@ import tempfile
 from astropy.io import ascii
 from astropy.coordinates import SkyCoord
 
+SATPREDICT = get_bin_path("satpredict")
+HOUGH3DLINES = get_bin_path("hough3dlines")
+
+
 class ThreeDLine:
     """3D defined line"""
 
@@ -374,7 +378,7 @@ class FourFrame:
             height = cfg.getfloat("Observer", "height")
     
             # Format command
-            command = f"satpredict -t {nfd} -l {texp} -n {nmjd} -L {lon} -B {lat} -H {height} -o {outfname} -R {ra0} -D {de0} -r {radius}"
+            command = f"{SATPREDICT} -t {nfd} -l {texp} -n {nmjd} -L {lon} -B {lat} -H {height} -o {outfname} -R {ra0} -D {de0} -r {radius}"
             for key, value in cfg.items("Elements"):
                 if "tlefile" in key:
                     command += f" -c {value}"
@@ -430,7 +434,7 @@ class FourFrame:
                     f.write(f"{x[i]:f},{y[i]:f},{z[i]:f}\n")
 
             # Run 3D Hough line-finding algorithm
-            command = f"hough3dlines -dx {trkrmin} -minvotes {ntrkmin} -raw {tmpfile_path}"
+            command = f"{HOUGH3DLINES} -dx {trkrmin} -minvotes {ntrkmin} -raw {tmpfile_path}"
             
             try:
                 output = subprocess.check_output(command,
@@ -475,7 +479,7 @@ class FourFrame:
                     f.write(f"{x[i]:f},{y[i]:f},{z[i]:f}\n")
 
             # Run 3D Hough line-finding algorithm
-            command = f"hough3dlines -dx {trkrmin} -minvotes {ntrkmin} -raw {tmpfile_path}"
+            command = f"{HOUGH3DLINES} -dx {trkrmin} -minvotes {ntrkmin} -raw {tmpfile_path}"
             
             try:
                 output = subprocess.check_output(command,
