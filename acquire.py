@@ -14,6 +14,7 @@ from stvid.utils import get_sunset_and_sunrise
 import logging
 import configparser
 import argparse
+from stvid.camera import ASICamera, CameraLostFrameError, ConfigError, NoCameraFoundError
 
 # Capture images from pi
 def capture_pi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, cfg):
@@ -211,92 +212,27 @@ def capture_cv2(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
 
 
 # Capture images
-def capture_asi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, cfg):
-    import zwoasi as asi
-    
+def capture_generic(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, cfg):
+    """
+    Capture images using a device supported by stvid.camera
+    """
     first    = True  # Array flag
     slow_CPU = False # Performance issue flag
 
-    
-    camera_type  = "ASI"
-    gain         = cfg.getint(camera_type, "gain")
-    maxgain      = cfg.getint(camera_type, "maxgain")
-    autogain     = cfg.getboolean(camera_type, "autogain")
-    exposure     = cfg.getint(camera_type, "exposure")
-    binning      = cfg.getint(camera_type, "bin")
-    brightness   = cfg.getint(camera_type, "brightness")
-    bandwidth    = cfg.getint(camera_type, "bandwidth")
-    high_speed   = cfg.getint(camera_type, "high_speed")
-    hardware_bin = cfg.getint(camera_type, "hardware_bin")
-    sdk          = cfg.get(camera_type, "sdk")
-    try:
-        software_bin = cfg.getint(camera_type, "software_bin")
-    except configparser.Error:
-        software_bin = 0
-
-    # Initialize device
-    asi.init(sdk)
-
-    num_cameras = asi.get_num_cameras()
-    if num_cameras == 0:
-        logger.error("No ZWOASI cameras found")
-        raise ValueError
-        sys.exit()
-
-    cameras_found = asi.list_cameras()  # Models names of the connected cameras
-
-    if num_cameras == 1:
-        device_id = 0
-        logger.info("Found one camera: %s" % cameras_found[0])
+    camera_type = cfg.get("Setup", "camera_type")
+    if camera_type == "ASI":
+        camera = ASICamera(device_id, cfg["ASI"])
     else:
-        logger.info("Found %d ZWOASI cameras" % num_cameras)
-        for n in range(num_cameras):
-            logger.info("    %d: %s" % (n, cameras_found[n]))
-        logger.info("Using #%d: %s" % (device_id, cameras_found[device_id]))
-
-    camera = asi.Camera(device_id)
-    camera_info = camera.get_camera_property()
-    logger.debug("ASI Camera info:")
-    for (key, value) in camera_info.items():
-        logger.debug("  %s : %s" % (key,value))
-
-    camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, bandwidth)
-    camera.disable_dark_subtract()
-    camera.set_control_value(asi.ASI_GAIN, gain, auto=autogain)
-    camera.set_control_value(asi.ASI_EXPOSURE, exposure, auto=False)
-    camera.set_control_value(asi.ASI_AUTO_MAX_GAIN, maxgain)
-    camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, 20)
-    camera.set_control_value(asi.ASI_WB_B, 99)
-    camera.set_control_value(asi.ASI_WB_R, 75)
-    camera.set_control_value(asi.ASI_GAMMA, 50)
-    camera.set_control_value(asi.ASI_BRIGHTNESS, brightness)
-    camera.set_control_value(asi.ASI_FLIP, 0)
-    try:
-        camera.set_control_value(asi.ASI_HIGH_SPEED_MODE, high_speed)
-    except:
-        pass
-    try:
-        camera.set_control_value(asi.ASI_HARDWARE_BIN, hardware_bin)
-    except:
-        pass
-    camera.set_roi(bins=binning)
-    camera.start_video_capture()
-    camera.set_image_type(asi.ASI_IMG_RAW8)
+        logger.error('Camera type %s is not supported', camera_type)
+        return
 
     try:
-        # Fix autogain
-        if autogain:
-            while True:
-                # Get frame
-                z = camera.capture_video_frame()
+        camera.initialize()
+    except (NoCameraFoundError, ConfigError) as err:
+        logger.error('ERROR: %s', str(err))
+        return
 
-                # Break on no change in gain
-                settings = camera.get_control_values()
-                if gain == settings["Gain"]:
-                    break
-                gain = settings["Gain"]
-                camera.set_control_value(asi.ASI_GAIN, gain, auto=autogain)
-
+    try:
         # Loop until reaching end time
         while float(time.time()) < tend:
             # Wait for available capture buffer to become available
@@ -310,32 +246,17 @@ def capture_asi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
                 logger.info("Waited %.3fs for available capture buffer" % lost_video)
                 slow_CPU = False
 
-            # Get settings
-            settings = camera.get_control_values()
-            gain = settings["Gain"]
-            temp = settings["Temperature"] / 10
-            logger.info("Capturing frame with gain %d, temperature %.1f" % (gain, temp))
-
-            # Set gain
-            if autogain:
-                camera.set_control_value(asi.ASI_GAIN, gain, auto=autogain)
+            camera.apply_autogain()
 
             # Get frames
+            logger.debug('Get %d frames', nz)
             for i in range(nz):
-                # Store start time
-                t0 = float(time.time())
-
-                # Get frame
-                z = camera.capture_video_frame()
-
-                # Apply software binning
-                if software_bin > 1:
-                    my, mx = z.shape
-                    z = cv2.resize(z, (mx // software_bin, my // software_bin))
+                try:
+                    z, t = camera.get_frame()
+                except CameraLostFrameError:
+                    # Skip lost frames
+                    continue
                 
-                # Compute mid time
-                t = (float(time.time()) + t0) / 2
-
                 # Display Frame
                 if live is True:
                     cv2.imshow("Capture", z)
@@ -370,7 +291,6 @@ def capture_asi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
     finally:
         # End capture
         logger.info("Capture: %s - Exiting" % reason)
-        camera.stop_video_capture()
         camera.close()
 
 
@@ -558,6 +478,8 @@ if __name__ == '__main__':
                              default=False,
                              help="Testing mode - Start capturing immediately for (optional) seconds",
                              metavar="s")
+    conf_parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+                             default='INFO', help='Set the log level (default: INFO)')
     conf_parser.add_argument("-l", "--live", action="store_true",
                              help="Display live image while capturing")
 
@@ -574,7 +496,7 @@ if __name__ == '__main__':
         sys.exit()
 
     # Setup logging
-    logFormatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] " +
+    logFormatter = logging.Formatter("%(asctime)s [%(module)-8.8s] " +
                                      "[%(levelname)-5.5s]  %(message)s")
     logger = logging.getLogger()
 
@@ -594,7 +516,7 @@ if __name__ == '__main__':
     consoleHandler = logging.StreamHandler(sys.stdout)
     consoleHandler.setFormatter(logFormatter)
     logger.addHandler(consoleHandler)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(args.log_level)
 
     logger.info("Using config: %s" % conf_file)
 
@@ -695,7 +617,7 @@ if __name__ == '__main__':
                                            args=(image_queue, z1, t1, z2, t2,
                                                  nx, ny, nz, tend.unix, device_id, live, cfg))
     elif camera_type == "ASI":
-        pcapture = multiprocessing.Process(target=capture_asi,
+        pcapture = multiprocessing.Process(target=capture_generic,
                                            args=(image_queue, z1, t1, z2, t2,
                                                  nx, ny, nz, tend.unix, device_id, live, cfg))
 
