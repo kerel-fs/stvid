@@ -252,17 +252,20 @@ def capture_generic(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, li
             # Get frames
             logger.debug('Get %d frames', nz)
             for i in range(nz):
+                t_capture1 = time.time()
                 try:
                     z, t = camera.get_frame()
                 except CameraLostFrameError:
                     # Skip lost frames
                     continue
+                t_capture2 = time.time()
                 
                 # Display Frame
                 if live is True:
                     cv2.imshow("Capture", z)
                     cv2.waitKey(1)
 
+                t_store1 = time.time()
                 # Store results
                 if first:
                     z1[:, :, i] = z
@@ -270,13 +273,17 @@ def capture_generic(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, li
                 else:
                     z2[:, :, i] = z
                     t2[i] = t
+                t_store2 = time.time()
 
             if first: 
                 buf = 1
             else:
                 buf = 2
             image_queue.put(buf)
-            logger.debug("Captured buffer %d (%dx%dx%d)" % (buf, nx, ny, nz))
+
+            dt_capture = t_capture2 - t_capture1
+            dt_store = t_store2 - t_store1
+            logger.debug("Captured buffer %d (%dx%dx%d) in %.3f s (store: %.3f s)" % (buf, nx, ny, nz, dt_capture, dt_store))
 
             # Swap flag
             first = not first
