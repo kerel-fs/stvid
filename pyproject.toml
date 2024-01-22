@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
+build-backend = "setuptools.build_meta"
+dynamic = ["version", "readme"]
+
+[project]
+name = "STVID"
+dynamic = [ "version" ]
+readme = "README.md"
+description =  "Satellite tracking with video cameras"
+authors = [
+    {name = "Cees Bassa"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+]
+dependencies = [
+    "astropy",
+    "cycler",
+    "kiwisolver",
+    "matplotlib",
+    "numpy",
+    "opencv-python",
+    "pyparsing",
+    "python-dateutil",
+    "pytz",
+    "scipy",
+    "six",
+    "spacetrack",
+    "termcolor",
+]
+
+[project.optional-dependencies]
+asi = ["zwoasi"]
+
+[project.urls]
+Repository = "https://github.com/cbassa/stvid"
+Issues = "https://github.com/cbassa/stvid/issues"
+
+[tool.setuptools_scm]
+
+[tool.setuptools]
+packages = [ "stvid" ]
+
+# [tool.pytest.ini_options]
+# addopts = [
+#     # Recommended for new projects
+#     "--import-mode=importlib",
+# ]
+
+[tool.pytest.ini_options]
+pythonpath = "."
