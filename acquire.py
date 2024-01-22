@@ -514,8 +514,6 @@ if __name__ == '__main__':
     logger.addHandler(consoleHandler)
     logger.setLevel(args.log_level)
 
-    logger.info("Using config: %s" % conf_file)
-
     # Process commandline options...
 
     # Testing mode
