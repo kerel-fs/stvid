@@ -211,9 +211,8 @@ if __name__ == "__main__":
     # Read commandline options
     conf_parser = argparse.ArgumentParser(description="Process captured" +
                                           " video frames.")
-    conf_parser.add_argument("-c",
-                             "--conf_file",
-                             help="Specify configuration file. If no file" +
+    conf_parser.add_argument("-c", "--conf_file",
+                             help="Specify configuration file(s). If no file" +
                              " is specified 'configuration.ini' is used.",
                              action="append",
                              nargs="?",
