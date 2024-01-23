@@ -6,6 +6,7 @@ import cv2
 import time
 import ctypes
 import multiprocessing
+from multiprocessing.shared_memory import SharedMemory
 from astropy.coordinates import EarthLocation
 from astropy.time import Time
 from astropy.io import fits
@@ -213,10 +214,23 @@ def capture_cv2(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
 
 
 # Capture images
-def capture_generic(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, cfg):
+def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
     """
     Capture images using a device supported by stvid.camera
     """
+    # Get views of the shared memory
+    nx, ny, nz =(buffer_settings[dim] for dim in ['nx', 'ny', 'nz'])
+    det = [('z1', (ny, nx, nz), np.uint8),
+           ('z2', (ny, nx, nz), np.uint8),
+           ('t1', nz, float),
+           ('t2', nz, float)]
+
+    shm = {}
+    for name, shape, dtype in det:
+        shm[name] = SharedMemory(name=f'stvid_{name}')
+
+    z1, z2, t1, t2 = (np.ndarray(shape, dtype=dtype, buffer=shm[name].buf) for name, shape, dtype in  det)
+
     first    = True  # Array flag
     slow_CPU = False # Performance issue flag
 
@@ -275,15 +289,12 @@ def capture_generic(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, li
                     t2[i] = t
                 t_store2 = time.time()
 
-            if first: 
-                buf = 1
-            else:
-                buf = 2
-            image_queue.put(buf)
+            buf_id = 1 if first else 2
+            image_queue.put(buf_id)
 
             dt_capture = t_capture2 - t_capture1
             dt_store = t_store2 - t_store1
-            logger.debug("Captured buffer %d (%dx%dx%d) in %.3f s (store: %.3f s)" % (buf, nx, ny, nz, dt_capture, dt_store))
+            logger.debug("Captured buffer %d (%dx%dx%d) in %.3f s (store: %.3f s)" % (buf_id, nx, ny, nz, dt_capture, dt_store))
 
             # Swap flag
             first = not first
@@ -302,7 +313,7 @@ def capture_generic(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, li
         camera.close()
 
 
-def compress(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, path, device_id, cfg):
+def compress(image_queue, buffer_settings, tend, path, device_id, cfg):
     """ compress: Aggregate nframes of observations into a single FITS file, with statistics.
 
         ImageHDU[0]: mean pixel value nframes         (zmax)
@@ -312,6 +323,19 @@ def compress(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, path, device_id, cfg
 
     Also updates a [observations_path]/control/state.txt for interfacing with satttools/runsched and sattools/slewto
     """
+    # Get views of the shared memory
+    nx, ny, nz =(buffer_settings[dim] for dim in ['nx', 'ny', 'nz'])
+    det = [('z1', (ny, nx, nz), np.uint8),
+           ('z2', (ny, nx, nz), np.uint8),
+           ('t1', nz, float),
+           ('t2', nz, float)]
+
+    shm = {}
+    for name, shape, dtype in det:
+        shm[name] = SharedMemory(name=f'stvid_{name}')
+
+    z1, z2, t1, t2 = (np.ndarray(shape, dtype=dtype, buffer=shm[name].buf) for name, shape, dtype in  det)
+
     # Force a restart
     controlpath = os.path.join(path, "control")
     if not os.path.exists(controlpath):
@@ -591,27 +615,46 @@ if __name__ == '__main__':
     logger.info("Acquisition will end after "+tend.isot)
 
     # Get settings
-    nx = cfg.getint(camera_type, "nx")
-    ny = cfg.getint(camera_type, "ny")
-    nz = cfg.getint(camera_type, "nframes")
+    settings = {
+    'ny': cfg.getint(camera_type, "ny"),
+    'nx': cfg.getint(camera_type, "nx"),
+    'nz': cfg.getint(camera_type, "nframes"),
+    }
+    settings['zshape'] = tuple(settings[dim] for dim in ('ny', 'nx', 'nz'))
+    settings['zdtype'] = np.uint8
+    settings['tshape'] = settings['nz']
+    settings['tdtype'] = float
 
-    # Initialize arrays
-    z1base = multiprocessing.Array(ctypes.c_uint8, nx * ny * nz)
-    z1 = np.ctypeslib.as_array(z1base.get_obj()).reshape(ny, nx, nz)
-    t1base = multiprocessing.Array(ctypes.c_double, nz)
-    t1 = np.ctypeslib.as_array(t1base.get_obj())
-    z2base = multiprocessing.Array(ctypes.c_uint8, nx * ny * nz)
-    z2 = np.ctypeslib.as_array(z2base.get_obj()).reshape(ny, nx, nz)
-    t2base = multiprocessing.Array(ctypes.c_double, nz)
-    t2 = np.ctypeslib.as_array(t2base.get_obj())
+    # Initialize arrays (OLD)
+    # z1base = multiprocessing.Array(ctypes.c_uint8, nx * ny * nz)
+    # z1 = np.ctypeslib.as_array(z1base.get_obj()).reshape(ny, nx, nz)
+    # t1base = multiprocessing.Array(ctypes.c_double, nz)
+    # t1 = np.ctypeslib.as_array(t1base.get_obj())
+    # z2base = multiprocessing.Array(ctypes.c_uint8, nx * ny * nz)
+    # z2 = np.ctypeslib.as_array(z2base.get_obj()).reshape(ny, nx, nz)
+    # t2base = multiprocessing.Array(ctypes.c_double, nz)
+    # t2 = np.ctypeslib.as_array(t2base.get_obj())
+
+    # Initialize arrays (NEWS)
+    z_template = np.empty(settings['zshape'], dtype=settings['zdtype'])
+    t_template = np.empty(settings['tshape'], dtype=settings['tdtype'])
+
+    shm_z1 = SharedMemory(name='stvid_z1', create=True, size=z_template.nbytes)
+    shm_z2 = SharedMemory(name='stvid_z2', create=True, size=z_template.nbytes)
+    shm_t1 = SharedMemory(name='stvid_t1', create=True, size=t_template.nbytes)
+    shm_t2 = SharedMemory(name='stvid_t2', create=True, size=t_template.nbytes)
+    buffer_settings = settings
 
     image_queue = multiprocessing.Queue()
 
     # Set processes
     pcompress = multiprocessing.Process(target=compress,
-                                        args=(image_queue, z1, t1, z2, t2, nx, ny,
-                                              nz, tend.unix, path, device_id, cfg),
+                                        args=(image_queue, buffer_settings, tend.unix, path, device_id, cfg),
                                         name="compress")
+    if camera_type in ("PI", "CV2"):
+        print('Camera not supported by new shared memory arch')
+        sys.exit(1)
+
     if camera_type == "PI":
         pcapture = multiprocessing.Process(target=capture_pi,
                                            args=(image_queue, z1, t1, z2, t2,
@@ -624,8 +667,7 @@ if __name__ == '__main__':
                                            name="capture")
     elif camera_type == "ASI":
         pcapture = multiprocessing.Process(target=capture_generic,
-                                           args=(image_queue, z1, t1, z2, t2,
-                                                 nx, ny, nz, tend.unix, device_id, live, cfg),
+                                           args=(image_queue, buffer_settings, tend.unix, device_id, live, cfg),
                                            name="capture")
 
     # Start
@@ -647,3 +689,9 @@ if __name__ == '__main__':
     # Release device
     if live is True:
         cv2.destroyAllWindows()
+
+    for name in ['z1', 'z2', 't1', 't2']:
+        print(f'Free {name}')
+        s = locals()[f'shm_{name}']
+        s.close()
+        s.unlink()
