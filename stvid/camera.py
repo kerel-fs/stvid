@@ -1,6 +1,9 @@
 import time
 import logging
 import cv2
+import numpy as np
+
+from stvid.config import load_config_section
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +28,8 @@ class ASICamera:
         - asi_cfg (ConfigParser.SectionProxy): Config Section 'ASI'
         """
         self.device_id = device_id
-        self._load_config(asi_cfg)
 
-    def _load_config(self, asi_cfg):
-        """
-        Parse camera-specific configuration and store it in `self.cfg`
-        """
+        # Parse camera-specific configuration
         keys = [
             ("gain", int),
             ("maxgain", int),
@@ -44,20 +43,7 @@ class ASICamera:
             ("autogain", bool),
             ("sdk", str),
         ]
-
-        def get(key, _type):
-            if _type == int:
-                value = asi_cfg.getint(key)
-            elif _type == bool:
-                value = asi_cfg.getboolean(key)
-            elif _type == str:
-                value = asi_cfg.get(key)
-
-            if value is None:
-                raise ConfigError(f"Configuration error: Option ASI.{key} is missing.")
-            return value
-
-        self.cfg = {key: get(key, _type) for key, _type in keys}
+        self.cfg = load_config_section('ASI', asi_cfg, keys)
 
     def _apply_camera_config(self):
         asi = self.asi
@@ -124,6 +110,7 @@ class ASICamera:
             logger.info("Found %d ZWOASI cameras" % num_cameras)
             for n in range(num_cameras):
                 logger.info("    %d: %s" % (n, cameras_found[n]))
+            device_id = self.device_id
             logger.info("Using #%d: %s" % (device_id, cameras_found[device_id]))
 
         self.camera = self.asi.Camera(device_id)
@@ -193,3 +180,70 @@ class ASICamera:
     def close(self):
         self.camera.stop_video_capture()
         self.camera.close()
+
+
+class CV2Camera:
+    def __init__(self, device_id, cv2_cfg):
+        """
+        Arguments
+        device_id (int):
+        cv2_cfg (ConfigParser.SectionProxy): Config Section 'CV2'
+        """
+        self.device_id = device_id
+        keys = [
+            ("software_bin", int),
+        ]
+        self.cfg = load_config_section('CV2', cv2_cfg, keys)
+
+    def initialize(self):
+        """
+        Initialize the camera.
+
+        Raises
+        NoCameraFoundError
+        """
+        # Initialize cv2 device
+        self.device = cv2.VideoCapture(self.device_id)
+        # TODO: Support software binning!
+        # # Set properties
+        # self.device.set(cv2.CAP_PROP_FRAME_WIDTH, self.nx * self.software_bin)
+        # self.device.set(cv2.CAP_PROP_FRAME_HEIGHT, self.ny * self.software_bin)
+
+    def get_frame(self):
+        # Store start time
+        t0 = float(time.time())
+
+        # Get frame
+        _, frame = self.device.read()
+
+        # Compute mid time
+        t = (float(time.time()) + t0) / 2
+
+        # Convert image to grayscale
+        z = np.asarray(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)).astype(np.uint8)
+
+        # Apply software binning
+        if self.cfg["software_bin"] != 0:
+            my, mx = z.shape
+            z = cv2.resize(
+                z, (mx // self.cfg["software_bin"], my // self.cfg["software_bin"])
+            )
+
+        return z, t
+
+    def close(self):
+        self.device.release()
+
+    @staticmethod
+    def print_config_hint(device_id):
+        device = cv2.VideoCapture(device_id)
+        width = device.get(cv2.CAP_PROP_FRAME_WIDTH)
+        height = device.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        fps = device.get(cv2.CAP_PROP_FPS)
+        device.release()
+
+        logger.error(f'The connected camera has following dimensions: (nx, ny) = (%d, %d)', width, height)
+        logger.error(f'For approximately 10 s captures derived from %d FPS, set nz = %d or less', fps, 10_000 / fps)
+
+    def apply_autogain(self):
+        pass

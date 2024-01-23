@@ -18,3 +18,19 @@ def load_config(args):
         print("Could not read config file: %s\nExiting..." % conf_file)
         sys.exit(1)
     return cfg
+
+
+def load_config_section(parent_section, cfg, keys):
+    def get(key, _type):
+        if _type == int:
+            value = cfg.getint(key)
+        elif _type == bool:
+            value = cfg.getboolean(key)
+        elif _type == str:
+            value = cfg.get(key)
+
+        if value is None:
+            raise ConfigError(f"Configuration error: Option {parent_section}.{key} is missing.")
+        return value
+
+    return {key: get(key, _type) for key, _type in keys}

@@ -16,7 +16,7 @@ from stvid.config import load_config
 import logging
 import configparser
 import argparse
-from stvid.camera import ASICamera, CameraLostFrameError, ConfigError, NoCameraFoundError
+from stvid.camera import ASICamera, CameraLostFrameError, ConfigError, CV2Camera, NoCameraFoundError
 
 
 class SharedNDArray:
@@ -134,97 +134,6 @@ def capture_pi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, c
         camera.close()
 
 
-
-# Capture images from cv2
-def capture_cv2(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, cfg):
-    # Intialization
-    first = True
-    slow_CPU = False
-
-    # Initialize cv2 device
-    device = cv2.VideoCapture(device_id)
-
-    # Test for software binning
-    try:
-        software_bin = cfg.getint(camera_type, "software_bin")
-    except configparser.Error:
-        software_bin = 1
-    
-    # Set properties
-    device.set(3, nx * software_bin)
-    device.set(4, ny * software_bin)
-   
-    try:
-        # Loop until reaching end time
-        while float(time.time()) < tend:
-            # Wait for available capture buffer to become available
-            if (image_queue.qsize() > 1):
-                logger.warning("Acquiring data faster than your CPU can process")
-                slow_CPU = True
-            while (image_queue.qsize() > 1):
-                time.sleep(0.1)
-            if slow_CPU:
-                lost_video = time.time() - t
-                logger.info("Waited %.3fs for available capture buffer" % lost_video)
-                slow_CPU = False
-
-            # Get frames
-            for i in range(nz):
-                # Store start time
-                t0 = float(time.time())
-
-                # Get frame
-                res, frame = device.read()
-
-                # Compute mid time
-                t = (float(time.time()) + t0) / 2
-
-                # Skip lost frames
-                if res is True:
-                    # Convert image to grayscale
-                    z = np.asarray(cv2.cvtColor(
-                        frame, cv2.COLOR_BGR2GRAY)).astype(np.uint8)
-
-                    # Apply software binning
-                    if software_bin > 1:
-                        my, mx = z.shape
-                        z = cv2.resize(z, (mx // software_bin, my // software_bin))
-                    
-                    # Display Frame
-                    if live is True:
-                        cv2.imshow("Capture", z)
-                        cv2.waitKey(1)
-
-                    # Store results
-                    if first:
-                        z1[:, :, i] = z
-                        t1[i] = t
-                    else:
-                        z2[:, :, i] = z
-                        t2[i] = t
-
-            if first: 
-                buf = 1
-            else:
-                buf = 2
-            image_queue.put(buf)
-            logger.debug("Captured z%d" % buf)
-
-            # Swap flag
-            first = not first
-        reason = "Session complete"
-    except KeyboardInterrupt:
-        print()
-        reason = "Keyboard interrupt"
-    except ValueError as e:
-        logger.error("%s" % e)
-        reason = "Wrong image dimensions? Fix nx, ny in config."
-    finally:
-        # End capture
-        logger.info("Capture: %s - Exiting" % reason)
-        device.release()
-
-
 # Capture images
 def capture_generic(image_queue, shared_z, shared_t, tend, device_id, live, cfg):
     """
@@ -241,6 +150,8 @@ def capture_generic(image_queue, shared_z, shared_t, tend, device_id, live, cfg)
     camera_type = cfg.get("Setup", "camera_type")
     if camera_type == "ASI":
         camera = ASICamera(device_id, cfg["ASI"])
+    elif camera_type == "CV2":
+        camera = CV2Camera(device_id, cfg["CV2"])
     else:
         logger.error('Camera type %s is not supported', camera_type)
         return
@@ -597,17 +508,25 @@ if __name__ == '__main__':
     else:
         tend = tnow + test_duration * u.s
 
-    if camera_type in ("PI", "CV2"):
-        print('Camera not supported again yet (shared memory and generic capture method)')
+    if camera_type in ("PI"):
+        print(f'Camera {camera_type} not supported again yet (shared memory and generic capture method)')
         sys.exit(1)
 
-    logger.info("Starting data acquisition")
-    logger.info("Acquisition will end after "+tend.isot)
 
-    # Get settings
-    nx = cfg.getint(camera_type, "nx")
-    ny = cfg.getint(camera_type, "ny")
-    nz = cfg.getint(camera_type, "nframes")
+    # Get frame dimensions to prepare shared buffers
+    try:
+        nx = cfg.getint(camera_type, "nx")
+        ny = cfg.getint(camera_type, "ny")
+        nz = cfg.getint(camera_type, "nframes")
+    except configparser.NoOptionError as err:
+        if camera_type == "CV2":
+            logger.error(err)
+            CV2Camera.print_config_hint(device_id)
+            sys.exit(1)
+        else:
+            logger.error(err)
+            sys.exit()
+
     logger.debug('Buffer size is (%dx%dx%d)', nx, ny, nz)
 
     image_queue = multiprocessing.Queue()
@@ -624,6 +543,8 @@ if __name__ == '__main__':
                                            args=(image_queue, shared_z, shared_t, tend.unix, device_id, live, cfg),
                                            name="capture")
 
+        logger.info("Starting data acquisition")
+        logger.info("Acquisition will end after "+tend.isot)
         # Start
         pcapture.start()
         pcompress.start()
