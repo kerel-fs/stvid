@@ -218,6 +218,8 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
     """
     Capture images using a device supported by stvid.camera
     """
+    logger.debug('Capture process id: %d', os.getpid())
+
     # Get views of the shared memory
     nx, ny, nz =(buffer_settings[dim] for dim in ['nx', 'ny', 'nz'])
     det = [('z1', (ny, nx, nz), np.uint8),
@@ -323,6 +325,8 @@ def compress(image_queue, buffer_settings, tend, path, device_id, cfg):
 
     Also updates a [observations_path]/control/state.txt for interfacing with satttools/runsched and sattools/slewto
     """
+    logger.debug('Compress process id: %d', os.getpid())
+
     # Get views of the shared memory
     nx, ny, nz =(buffer_settings[dim] for dim in ['nx', 'ny', 'nz'])
     det = [('z1', (ny, nx, nz), np.uint8),
