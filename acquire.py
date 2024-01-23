@@ -231,7 +231,8 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
     for name, shape, dtype in det:
         shm[name] = SharedMemory(name=f'stvid_{name}')
 
-    z1, z2, t1, t2 = (np.ndarray(shape, dtype=dtype, buffer=shm[name].buf) for name, shape, dtype in  det)
+    z = list(np.ndarray(shape, dtype=dtype, buffer=shm[name].buf) for name, shape, dtype in  det[:2])
+    t = list(np.ndarray(shape, dtype=dtype, buffer=shm[name].buf) for name, shape, dtype in  det[2:])
 
     first    = True  # Array flag
     slow_CPU = False # Performance issue flag
@@ -266,11 +267,12 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
             camera.apply_autogain()
 
             # Get frames
-            logger.debug('Get %d frames', nz)
+            buffer_id = 0 if first else 1
+            logger.debug('Get %d frames for buffer %d', nz, buffer_id)
             for i in range(nz):
                 t_capture1 = time.time()
                 try:
-                    z, t = camera.get_frame()
+                    z[buffer_id][:, :, i], t[buffer_id][i] = camera.get_frame()
                 except CameraLostFrameError:
                     # Skip lost frames
                     continue
@@ -281,22 +283,10 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
                     cv2.imshow("Capture", z)
                     cv2.waitKey(1)
 
-                t_store1 = time.time()
-                # Store results
-                if first:
-                    z1[:, :, i] = z
-                    t1[i] = t
-                else:
-                    z2[:, :, i] = z
-                    t2[i] = t
-                t_store2 = time.time()
-
-            buf_id = 1 if first else 2
-            image_queue.put(buf_id)
+            image_queue.put(buffer_id + 1)
 
             dt_capture = t_capture2 - t_capture1
-            dt_store = t_store2 - t_store1
-            logger.debug("Captured buffer %d (%dx%dx%d) in %.3f s (store: %.3f s)" % (buf_id, nx, ny, nz, dt_capture, dt_store))
+            logger.debug("Captured buffer %d (%dx%dx%d) in %.3f s" % (buffer_id, nx, ny, nz, dt_capture))
 
             # Swap flag
             first = not first
