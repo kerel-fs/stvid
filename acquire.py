@@ -193,7 +193,7 @@ def capture_generic(image_queue, shared_z, shared_t, tend, device_id, live, cfg)
                 
                 # Display Frame
                 if live is True:
-                    cv2.imshow("Capture", z)
+                    cv2.imshow('Capture', z[buffer_id - 1][:,:,i])
                     cv2.waitKey(1)
 
             image_queue.put(buffer_id)
