@@ -6,7 +6,7 @@ import cv2
 import time
 import ctypes
 import multiprocessing
-from multiprocessing.shared_memory import SharedMemory
+from multiprocessing.managers import SharedMemoryManager
 from astropy.coordinates import EarthLocation
 from astropy.time import Time
 from astropy.io import fits
@@ -17,6 +17,18 @@ import logging
 import configparser
 import argparse
 from stvid.camera import ASICamera, CameraLostFrameError, ConfigError, NoCameraFoundError
+
+
+class SharedNDArray:
+    def __init__(self, smm, shape, dtype):
+        self.shape = shape
+        self.dtype = dtype
+        template = np.empty(shape, dtype=dtype)
+        self.shm = smm.SharedMemory(size=template.nbytes)
+
+    def get_view(self):
+        return np.ndarray(self.shape, dtype=self.dtype, buffer=self.shm.buf)
+
 
 # Capture images from pi
 def capture_pi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, cfg):
@@ -214,25 +226,14 @@ def capture_cv2(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
 
 
 # Capture images
-def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
+def capture_generic(image_queue, shared_z, shared_t, tend, device_id, live, cfg):
     """
     Capture images using a device supported by stvid.camera
     """
     logger.debug('Capture process id is %d', os.getpid())
-
-    # Get views of the shared memory
-    nx, ny, nz =(buffer_settings[dim] for dim in ['nx', 'ny', 'nz'])
-    det = [('z1', (ny, nx, nz), np.uint8),
-           ('z2', (ny, nx, nz), np.uint8),
-           ('t1', nz, float),
-           ('t2', nz, float)]
-
-    shm = {}
-    for name, shape, dtype in det:
-        shm[name] = SharedMemory(name=f'stvid_{name}')
-
-    z = list(np.ndarray(shape, dtype=dtype, buffer=shm[name].buf) for name, shape, dtype in  det[:2])
-    t = list(np.ndarray(shape, dtype=dtype, buffer=shm[name].buf) for name, shape, dtype in  det[2:])
+    z = list(shared_array.get_view() for shared_array in shared_z)
+    t = list(shared_array.get_view() for shared_array in shared_t)
+    ny, nx, nz = shared_z[0].shape
 
     first    = True  # Array flag
     slow_CPU = False # Performance issue flag
@@ -306,7 +307,7 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
         camera.close()
 
 
-def compress(image_queue, buffer_settings, tend, path, device_id, cfg):
+def compress(image_queue, shared_z, shared_t, tend, path, device_id, cfg):
     """ compress: Aggregate nframes of observations into a single FITS file, with statistics.
 
         ImageHDU[0]: mean pixel value nframes         (zmax)
@@ -317,19 +318,9 @@ def compress(image_queue, buffer_settings, tend, path, device_id, cfg):
     Also updates a [observations_path]/control/state.txt for interfacing with satttools/runsched and sattools/slewto
     """
     logger.debug('Compress process id is %d', os.getpid())
-
-    # Get views of the shared memory
-    nx, ny, nz =(buffer_settings[dim] for dim in ['nx', 'ny', 'nz'])
-    det = [('z1', (ny, nx, nz), np.uint8),
-           ('z2', (ny, nx, nz), np.uint8),
-           ('t1', nz, float),
-           ('t2', nz, float)]
-
-    shm = {}
-    for name, shape, dtype in det:
-        shm[name] = SharedMemory(name=f'stvid_{name}')
-
-    z1, z2, t1, t2 = (np.ndarray(shape, dtype=dtype, buffer=shm[name].buf) for name, shape, dtype in  det)
+    z1, z2 = list(shared_array.get_view() for shared_array in shared_z)
+    t1, t2 = list(shared_array.get_view() for shared_array in shared_t)
+    ny, nx, nz = shared_z[0].shape
 
     # Force a restart
     controlpath = os.path.join(path, "control")
@@ -606,90 +597,49 @@ if __name__ == '__main__':
     else:
         tend = tnow + test_duration * u.s
 
+    if camera_type in ("PI", "CV2"):
+        print('Camera not supported again yet (shared memory and generic capture method)')
+        sys.exit(1)
+
     logger.info("Starting data acquisition")
     logger.info("Acquisition will end after "+tend.isot)
 
     # Get settings
-    settings = {
-    'ny': cfg.getint(camera_type, "ny"),
-    'nx': cfg.getint(camera_type, "nx"),
-    'nz': cfg.getint(camera_type, "nframes"),
-    }
-    settings['zshape'] = tuple(settings[dim] for dim in ('ny', 'nx', 'nz'))
-    settings['zdtype'] = np.uint8
-    settings['tshape'] = settings['nz']
-    settings['tdtype'] = float
-
-    logger.debug('Buffer size is (%dx%dx%d)', *(settings[dim] for dim in ['nx', 'ny', 'nz']))
-
-
-    # Initialize arrays (OLD)
-    # z1base = multiprocessing.Array(ctypes.c_uint8, nx * ny * nz)
-    # z1 = np.ctypeslib.as_array(z1base.get_obj()).reshape(ny, nx, nz)
-    # t1base = multiprocessing.Array(ctypes.c_double, nz)
-    # t1 = np.ctypeslib.as_array(t1base.get_obj())
-    # z2base = multiprocessing.Array(ctypes.c_uint8, nx * ny * nz)
-    # z2 = np.ctypeslib.as_array(z2base.get_obj()).reshape(ny, nx, nz)
-    # t2base = multiprocessing.Array(ctypes.c_double, nz)
-    # t2 = np.ctypeslib.as_array(t2base.get_obj())
-
-    # Initialize arrays (NEWS)
-    z_template = np.empty(settings['zshape'], dtype=settings['zdtype'])
-    t_template = np.empty(settings['tshape'], dtype=settings['tdtype'])
-
-    shm_z1 = SharedMemory(name='stvid_z1', create=True, size=z_template.nbytes)
-    shm_z2 = SharedMemory(name='stvid_z2', create=True, size=z_template.nbytes)
-    shm_t1 = SharedMemory(name='stvid_t1', create=True, size=t_template.nbytes)
-    shm_t2 = SharedMemory(name='stvid_t2', create=True, size=t_template.nbytes)
-    buffer_settings = settings
+    nx = cfg.getint(camera_type, "nx")
+    ny = cfg.getint(camera_type, "ny")
+    nz = cfg.getint(camera_type, "nframes")
+    logger.debug('Buffer size is (%dx%dx%d)', nx, ny, nz)
 
     image_queue = multiprocessing.Queue()
 
     # Set processes
-    pcompress = multiprocessing.Process(target=compress,
-                                        args=(image_queue, buffer_settings, tend.unix, path, device_id, cfg),
-                                        name="compress")
-    if camera_type in ("PI", "CV2"):
-        print('Camera not supported by new shared memory arch')
-        sys.exit(1)
+    with SharedMemoryManager() as smm:
+        shared_z = list(SharedNDArray(smm, shape=(ny, nx, nz), dtype=np.uint8) for _ in range(2))
+        shared_t = list(SharedNDArray(smm, shape=nz, dtype=float) for _ in range(2))
 
-    if camera_type == "PI":
-        pcapture = multiprocessing.Process(target=capture_pi,
-                                           args=(image_queue, z1, t1, z2, t2,
-                                                 nx, ny, nz, tend.unix, device_id, live, cfg),
-                                           name="capture")
-    elif camera_type == "CV2":
-        pcapture = multiprocessing.Process(target=capture_cv2,
-                                           args=(image_queue, z1, t1, z2, t2,
-                                                 nx, ny, nz, tend.unix, device_id, live, cfg),
-                                           name="capture")
-    elif camera_type == "ASI":
+        pcompress = multiprocessing.Process(target=compress,
+                                            args=(image_queue, shared_z, shared_t, tend.unix, path, device_id, cfg),
+                                            name="compress")
         pcapture = multiprocessing.Process(target=capture_generic,
-                                           args=(image_queue, buffer_settings, tend.unix, device_id, live, cfg),
+                                           args=(image_queue, shared_z, shared_t, tend.unix, device_id, live, cfg),
                                            name="capture")
 
-    # Start
-    pcapture.start()
-    pcompress.start()
+        # Start
+        pcapture.start()
+        pcompress.start()
 
-    # End
-    try:
-        pcapture.join()
-        pcompress.join()
-    except (KeyboardInterrupt, ValueError):
-        time.sleep(0.1) # Allow a little time for a graceful exit
-    except MemoryError as e:
-        logger.error("Memory error %s" % e)
-    finally:
-        pcapture.terminate()
-        pcompress.terminate()
+        # End
+        try:
+            pcapture.join()
+            pcompress.join()
+        except (KeyboardInterrupt, ValueError):
+            time.sleep(0.1) # Allow a little time for a graceful exit
+        except MemoryError as e:
+            logger.error("Memory error %s" % e)
+        finally:
+            pcapture.terminate()
+            pcompress.terminate()
 
-    # Release device
-    if live is True:
-        cv2.destroyAllWindows()
-
-    for name in ['z1', 'z2', 't1', 't2']:
-        print(f'Free {name}')
-        s = locals()[f'shm_{name}']
-        s.close()
-        s.unlink()
+        # Release device
+        if live is True:
+            cv2.destroyAllWindows()
