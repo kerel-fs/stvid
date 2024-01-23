@@ -218,7 +218,7 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
     """
     Capture images using a device supported by stvid.camera
     """
-    logger.debug('Capture process id: %d', os.getpid())
+    logger.debug('Capture process id is %d', os.getpid())
 
     # Get views of the shared memory
     nx, ny, nz =(buffer_settings[dim] for dim in ['nx', 'ny', 'nz'])
@@ -267,13 +267,13 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
             camera.apply_autogain()
 
             # Get frames
-            buffer_id = 0 if first else 1
+            buffer_id = 1 if first else 2
             logger.debug('Get %d frames for buffer %d', nz, buffer_id)
             dt_capture = []
             for i in range(nz):
                 t_capture1 = time.time()
                 try:
-                    z[buffer_id][:, :, i], t[buffer_id][i] = camera.get_frame()
+                    z[buffer_id - 1][:, :, i], t[buffer_id - 1][i] = camera.get_frame()
                 except CameraLostFrameError:
                     # Skip lost frames
                     continue
@@ -284,10 +284,10 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
                     cv2.imshow("Capture", z)
                     cv2.waitKey(1)
 
-            image_queue.put(buffer_id + 1)
+            image_queue.put(buffer_id)
 
-            logger.debug("mean %.3f s, std %.3f s" % (np.mean(dt_capture), np.std(dt_capture))
-            logger.debug("buffer %d (%dx%dx%d) captured in %.3f s" % (buffer_id, nx, ny, nz, time.time() - t_begin))
+            logger.debug("%d frames taken, mean %.3f s, std %.5f s" % (nz, np.mean(dt_capture), np.std(dt_capture)))
+            logger.debug("buffer %d captured in %.3f s" % (buffer_id, time.time() - t_begin))
 
             # Swap flag
             first = not first
@@ -316,7 +316,7 @@ def compress(image_queue, buffer_settings, tend, path, device_id, cfg):
 
     Also updates a [observations_path]/control/state.txt for interfacing with satttools/runsched and sattools/slewto
     """
-    logger.debug('Compress process id: %d', os.getpid())
+    logger.debug('Compress process id is %d', os.getpid())
 
     # Get views of the shared memory
     nx, ny, nz =(buffer_settings[dim] for dim in ['nx', 'ny', 'nz'])
@@ -619,6 +619,9 @@ if __name__ == '__main__':
     settings['zdtype'] = np.uint8
     settings['tshape'] = settings['nz']
     settings['tdtype'] = float
+
+    logger.debug('Buffer size is (%dx%dx%d)', *(settings[dim] for dim in ['nx', 'ny', 'nz']))
+
 
     # Initialize arrays (OLD)
     # z1base = multiprocessing.Array(ctypes.c_uint8, nx * ny * nz)
