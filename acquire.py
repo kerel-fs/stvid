@@ -252,7 +252,7 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
 
     try:
         # Loop until reaching end time
-        while float(time.time()) < tend:
+        while (t_begin := time.time()) < tend:
             # Wait for available capture buffer to become available
             if (image_queue.qsize() > 1):
                 logger.warning("Acquiring data faster than your CPU can process")
@@ -269,6 +269,7 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
             # Get frames
             buffer_id = 0 if first else 1
             logger.debug('Get %d frames for buffer %d', nz, buffer_id)
+            dt_capture = []
             for i in range(nz):
                 t_capture1 = time.time()
                 try:
@@ -276,7 +277,7 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
                 except CameraLostFrameError:
                     # Skip lost frames
                     continue
-                t_capture2 = time.time()
+                dt_capture.append(time.time() - t_capture1)
                 
                 # Display Frame
                 if live is True:
@@ -285,8 +286,8 @@ def capture_generic(image_queue, buffer_settings, tend, device_id, live, cfg):
 
             image_queue.put(buffer_id + 1)
 
-            dt_capture = t_capture2 - t_capture1
-            logger.debug("Captured buffer %d (%dx%dx%d) in %.3f s" % (buffer_id, nx, ny, nz, dt_capture))
+            logger.debug("mean %.3f s, std %.3f s" % (np.mean(dt_capture), np.std(dt_capture))
+            logger.debug("buffer %d (%dx%dx%d) captured in %.3f s" % (buffer_id, nx, ny, nz, time.time() - t_begin))
 
             # Swap flag
             first = not first
