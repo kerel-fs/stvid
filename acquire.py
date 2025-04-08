@@ -34,15 +34,15 @@ def capture_pi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, c
 
     # Initialize cv2 device
     camera = PiCamera(sensor_mode=2)
-    camera.resolution = (nx, ny)    
+    camera.resolution = (nx, ny)
     # Turn off any thing automatic.
-    camera.exposure_mode = "off"        
+    camera.exposure_mode = "off"
     camera.awb_mode = "off"
     # ISO needs to be 0 otherwise analog and digital gain won't work.
     camera.iso = 0
     # set the camea settings
     camera.framerate = cfg.getfloat(camera_type, "framerate")
-    camera.awb_gains = (cfg.getfloat(camera_type, "awb_gain_red"), cfg.getfloat(camera_type, "awb_gain_blue"))    
+    camera.awb_gains = (cfg.getfloat(camera_type, "awb_gain_red"), cfg.getfloat(camera_type, "awb_gain_blue"))
     camera.analog_gain = cfg.getfloat(camera_type, "analog_gain")
     camera.digital_gain = cfg.getfloat(camera_type, "digital_gain")
     camera.shutter_speed = cfg.getint(camera_type, "exposure")
@@ -68,28 +68,28 @@ def capture_pi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, c
             # Get frames
             i = 0
             for frameA in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-                            
+
                 # Store start time
-                t0 = float(time.time())                
-                # grab the raw NumPy array representing the image, then initialize the timestamp                
+                t0 = float(time.time())
+                # grab the raw NumPy array representing the image, then initialize the timestamp
                 frame = frameA.array
-                                    
+
                 # Compute mid time
                 t = (float(time.time()) + t0) / 2
-                
+
                 # Skip lost frames
                 if frame is not None:
                     # Convert image to grayscale
                     z = np.asarray(cv2.cvtColor(
                         frame, cv2.COLOR_BGR2GRAY)).astype(np.uint8)
-                    # optionally rotate the frame by 2 * 90 degrees.    
+                    # optionally rotate the frame by 2 * 90 degrees.
                     # z = np.rot90(z, 2)
-                
+
                     # Display Frame
-                    if live is True:                            
-                        cv2.imshow("Capture", z)    
+                    if live is True:
+                        cv2.imshow("Capture", z)
                         cv2.waitKey(1)
-                    
+
                     # Store results
                     if first:
                         z1[:, :, i] = z
@@ -97,15 +97,15 @@ def capture_pi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, c
                     else:
                         z2[:, :, i] = z
                         t2[i] = t
-                        
+
                 # clear the stream in preparation for the next frame
                 rawCapture.truncate(0)
                 # count up to nz frames, then break out of the for loop.
                 i += 1
                 if i >= nz:
                     break
-                
-            if first: 
+
+            if first:
                 buf = 1
             else:
                 buf = 2
@@ -142,11 +142,11 @@ def capture_cv2(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
         software_bin = cfg.getint(camera_type, "software_bin")
     except configparser.Error:
         software_bin = 1
-    
+
     # Set properties
     device.set(3, nx * software_bin)
     device.set(4, ny * software_bin)
-   
+
     try:
         # Loop until reaching end time
         while float(time.time()) < tend:
@@ -182,7 +182,7 @@ def capture_cv2(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
                     if software_bin > 1:
                         my, mx = z.shape
                         z = cv2.resize(z, (mx // software_bin, my // software_bin))
-                    
+
                     # Display Frame
                     if live is True:
                         cv2.imshow("Capture", z)
@@ -196,7 +196,7 @@ def capture_cv2(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
                         z2[:, :, i] = z
                         t2[i] = t
 
-            if first: 
+            if first:
                 buf = 1
             else:
                 buf = 2
@@ -221,11 +221,11 @@ def capture_cv2(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
 # Capture images
 def capture_asi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, cfg):
     import zwoasi as asi
-    
+
     first    = True  # Array flag
     slow_CPU = False # Performance issue flag
 
-    
+
     camera_type  = "ASI"
     gain         = cfg.getint(camera_type, "gain")
     maxgain      = cfg.getint(camera_type, "maxgain")
@@ -340,7 +340,7 @@ def capture_asi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
                 if software_bin > 1:
                     my, mx = z.shape
                     z = cv2.resize(z, (mx // software_bin, my // software_bin))
-                
+
                 # Compute mid time
                 t = (float(time.time()) + t0) / 2
 
@@ -357,7 +357,7 @@ def capture_asi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
                     z2[:, :, i] = z
                     t2[i] = t
 
-            if first: 
+            if first:
                 buf = 1
             else:
                 buf = 2
@@ -403,7 +403,7 @@ def compress(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, path, device_id, cfg
     if not os.path.exists(os.path.join(controlpath, "position.txt")):
         with open(os.path.join(controlpath, "position.txt"), "w") as fp:
             fp.write("\n")
-                          
+
     with open(os.path.join(controlpath, "state.txt"), "w") as fp:
         fp.write("restart\n")
 
@@ -446,7 +446,7 @@ def compress(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, path, device_id, cfg
             # Wait for completed capture buffer to become available
             while (image_queue.qsize == 0):
                 time.sleep(0.1)
-                
+
             # Get next buffer # from the work queue
             proc_buffer = image_queue.get()
             logger.debug("Processing buffer %d" % proc_buffer)
@@ -456,7 +456,7 @@ def compress(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, path, device_id, cfg
 
             # Process first buffer
             if proc_buffer == 1:
-                t = t1                
+                t = t1
                 z = z1
             elif proc_buffer == 2:
                 t = t2
@@ -470,12 +470,12 @@ def compress(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, path, device_id, cfg
 
             # Cast to 32 bit float
             z = z.astype("float32")
-            
+
             # Compute statistics
             zmax = np.max(z, axis=2)
             znum = np.argmax(z, axis=2)
             zs1 = np.sum(z, axis=2) - zmax
-            zs2 = np.sum(z * z, axis=2) - zmax * zmax 
+            zs2 = np.sum(z * z, axis=2) - zmax * zmax
             zavg = zs1 / float(nz - 1)
             zstd = np.sqrt((zs2 - zs1 * zavg) / float(nz - 2))
 
@@ -537,7 +537,7 @@ def compress(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, path, device_id, cfg
             if t[-1] > tend:
                 break
             logger.debug("Processed buffer %d" % proc_buffer)
-            
+
 
     except KeyboardInterrupt:
         pass
@@ -555,9 +555,9 @@ if __name__ == '__main__':
     conf_parser = argparse.ArgumentParser(description="Capture and compress" +
                                                       " live video frames.")
     conf_parser = add_argument_conf_file(conf_parser)
-    conf_parser.add_argument("-t", "--test", 
+    conf_parser.add_argument("-t", "--test",
                              nargs="?",
-                             action="store", 
+                             action="store",
                              default=False,
                              help="Testing mode - Start capturing immediately for (optional) seconds",
                              metavar="s")
