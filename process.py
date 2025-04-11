@@ -7,10 +7,6 @@ import json
 import datetime
 
 import argparse
-import configparser
-
-import numpy as np
-
 import warnings
 
 from termcolor import colored
