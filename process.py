@@ -26,7 +26,7 @@ from stvid.config import add_argument_conf_file, load_config
 from astropy.utils.exceptions import AstropyWarning
 
 def number_to_letter(n):
-    # 
+    #
     if n == 0:
         return ""
     x = (n - 1) % 24
@@ -56,7 +56,7 @@ def process_loop(fname):
 
     # File root
     froot = os.path.splitext(fname)[0]
-    
+
     # Find stars
     if not os.path.exists(f"{froot}_stars.cat"):
         scat = calibration.generate_star_catalog(fname)
@@ -72,7 +72,7 @@ def process_loop(fname):
 #        if not is_calibrated and scat.nstars > nstarsmin:
 #            print(colored(f"Computing astrometric calibration for {fname}", "yellow"))
 #            wtmp, ttmp = calibration.plate_solve(fname, cfg, calfname)
-            
+
 #            # Retry calibration
 #            if wtmp is not None:
 #                wref, tref = wtmp, ttmp
@@ -89,10 +89,10 @@ def process_loop(fname):
     # Skip if png exists
     if os.path.exists(f"{froot}_0.png"):
         return
-        
+
     # Read Fourframe
     ff = FourFrame(fname, cfg)
-        
+
     # Generate predictions
     predictions = ff.generate_satellite_predictions(cfg)
 
@@ -116,7 +116,7 @@ def process_loop(fname):
                    "sy": ff.sy,
                    "wx": ff.wx,
                    "wy": ff.wy}
-    
+
     # Loop over tracks
     ident_dicts = []
     obs = []
@@ -166,14 +166,14 @@ def process_loop(fname):
         # Store observation
         obs.append(Observation(ident.satno, ident.catalogname, iod_line, iod_lines))
 
-        
+
     # Store output
     if ident_dicts is not []:
         output_dict["satellites"] = ident_dicts
 
         with open(f"{ff.froot}_data.json", "w") as fp:
             json.dump(output_dict, fp)
-        
+
     # Write observations
     screenoutput_idents = []
     for o in obs:
@@ -204,7 +204,7 @@ def process_loop(fname):
         del t
     for o in obs:
         del o
-        
+
     return (screenoutput, screenoutput_idents)
 
 if __name__ == "__main__":
@@ -242,7 +242,7 @@ if __name__ == "__main__":
     # Set warnings
     warnings.filterwarnings("ignore", category=UserWarning, append=True)
     warnings.simplefilter("ignore", AstropyWarning)
-    
+
     # Observer settings
     nstarsmin = cfg.getint("Astrometry", "min_stars")
 
@@ -303,7 +303,7 @@ if __name__ == "__main__":
         if solved:
             print("Calibration succeeded!")
             break
-            
+
         try:
             if(args.batch):
                 sys.exit()
@@ -321,7 +321,7 @@ if __name__ == "__main__":
     else:
         cpu_count = args.cpu_count
     print(f"Processing with {cpu_count} threads")
-        
+
     # Processing loop
     while True:
         # Get unprocessed files
