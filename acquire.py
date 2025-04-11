@@ -19,7 +19,7 @@ import logging
 import configparser
 import argparse
 
-
+logger = logging.getLogger()
 METRICS = AcquisitionMetrics()
 
 
@@ -41,6 +41,7 @@ def capture_pi(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, c
     # ISO needs to be 0 otherwise analog and digital gain won't work.
     camera.iso = 0
     # set the camea settings
+    camera_type = "PI"
     camera.framerate = cfg.getfloat(camera_type, "framerate")
     camera.awb_gains = (cfg.getfloat(camera_type, "awb_gain_red"), cfg.getfloat(camera_type, "awb_gain_blue"))
     camera.analog_gain = cfg.getfloat(camera_type, "analog_gain")
@@ -139,6 +140,7 @@ def capture_cv2(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, device_id, live, 
 
     # Test for software binning
     try:
+        camera_type = "CV2"
         software_bin = cfg.getint(camera_type, "software_bin")
     except configparser.Error:
         software_bin = 1
@@ -548,9 +550,7 @@ def compress(image_queue, z1, t1, z2, t2, nx, ny, nz, tend, path, device_id, cfg
         logger.info("Exiting compress")
 
 
-# Main function
-if __name__ == '__main__':
-
+def main():
     # Read commandline options
     conf_parser = argparse.ArgumentParser(description="Capture and compress" +
                                                       " live video frames.")
@@ -574,7 +574,6 @@ if __name__ == '__main__':
     # Setup logging
     logFormatter = logging.Formatter("%(asctime)s [%(module)-8.8s] " +
                                      "[%(levelname)-5.5s]  %(message)s")
-    logger = logging.getLogger()
 
     # Generate directory
     path = os.path.abspath(cfg.get("Setup", "observations_path"))
@@ -739,3 +738,7 @@ if __name__ == '__main__':
         if shutter:
             shutter.close_shutter()
             METRICS.shutter_state.set(0)
+
+
+if __name__ == '__main__':
+    main()
