@@ -616,18 +616,23 @@ def main():
     live = True if args.live else False
     logger.info("Live mode: %s" % live)
 
-    # Current time
-    tnow = Time.now()
+    if testing:
+        tnow = Time.now()
+        tend = tnow + test_duration * u.s
+        run_acquisition(cfg, path, live, tend)
+        return
 
-    # Set location
-    loc = EarthLocation(lat=cfg.getfloat("Observer", "latitude") * u.deg,
-                        lon=cfg.getfloat("Observer", "longitude") * u.deg,
-                        height=cfg.getfloat("Observer", "height") * u.m)
-
-    if not testing:
+    while True:
         # Reference altitudes
         refalt_set  = cfg.getfloat("Setup", "alt_sunset") * u.deg
         refalt_rise = cfg.getfloat("Setup", "alt_sunrise") * u.deg
+
+        # Set location
+        loc = EarthLocation(lat=cfg.getfloat("Observer", "latitude") * u.deg,
+                            lon=cfg.getfloat("Observer", "longitude") * u.deg,
+                            height=cfg.getfloat("Observer", "height") * u.m)
+
+        tnow = Time.now()
 
         # FIXME: The following will fail without internet access
         #        due to failure to download finals2000A.all
@@ -641,23 +646,23 @@ def main():
         elif state == "sun never sets":
             logger.info("The sun never sets.")
             tend = tnow + 24 * u.h
+            run_acquisition(cfg, path, live, tend)
         elif (trise < tset):
             logger.info("The sun is below the horizon.")
             tend = trise
+            run_acquisition(cfg, path, live, tend)
         elif (trise >= tset):
             dt = np.floor((tset - tnow).to(u.s).value)
             logger.info("The sun is above the horizon. Sunset at %s."
                         % tset.isot)
             logger.info("Waiting %.0f seconds." % dt)
-            tend = trise
             try:
                 time.sleep(dt)
             except KeyboardInterrupt:
                 sys.exit()
-    else:
-        tend = tnow + test_duration * u.s
+            continue
 
-    run_acquisition(cfg, path, live, tend)
+        logger.info("Night observation complete. Waiting for next sunset.")
 
 
 def run_acquisition(cfg, path, live, tend):
