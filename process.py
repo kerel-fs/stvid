@@ -351,11 +351,11 @@ def main():
             p.close()
             p.join()
 
-        # Sleep
+        if(args.batch):
+            sys.exit()
+
+        print("File queue empty, waiting for new files...\r", end = "")
         try:
-            if(args.batch):
-                sys.exit()
-            print("File queue empty, waiting for new files...\r", end = "")
             time.sleep(args.wait)
         except KeyboardInterrupt:
             sys.exit()
