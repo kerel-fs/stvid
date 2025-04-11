@@ -616,12 +616,6 @@ def main():
     live = True if args.live else False
     logger.info("Live mode: %s" % live)
 
-    # Get camera type
-    camera_type = cfg.get("Setup", "camera_type")
-
-    # Get device id
-    device_id = cfg.getint(camera_type, "device_id")
-
     # Current time
     tnow = Time.now()
 
@@ -663,16 +657,28 @@ def main():
     else:
         tend = tnow + test_duration * u.s
 
-    if cfg.has_section('Shutter'):
-        from stvid.shutter import Shutter
+    run_acquisition(cfg, path, live, tend)
 
-        shutter = Shutter(cfg.getint('Shutter', 'pin'))
-    else:
-        shutter = None
 
+def run_acquisition(cfg, path, live, tend):
+    """
+    Run image acquisition until specified end time.
+
+    Arguments:
+    cfg - Configuration object containing camera and observation settings
+    path - Output directory path for files
+    live - Enable live preview window if True
+    tend - Time specifying when acquisition should stop
+    """
     logger.info("Starting data acquisition")
     logger.info("Acquisition will end after "+tend.isot)
     METRICS.acquisition_status.set(1)
+
+    # Get camera type
+    camera_type = cfg.get("Setup", "camera_type")
+
+    # Get device id
+    device_id = cfg.getint(camera_type, "device_id")
 
     # Get settings
     nx = cfg.getint(camera_type, "nx")
@@ -707,6 +713,12 @@ def main():
         pcapture = multiprocessing.Process(target=capture_asi,
                                            args=(image_queue, z1, t1, z2, t2,
                                                  nx, ny, nz, tend.unix, device_id, live, cfg))
+
+    if cfg.has_section('Shutter'):
+        from stvid.shutter import Shutter
+        shutter = Shutter(cfg.getint('Shutter', 'pin'))
+    else:
+        shutter = None
 
     try:
         if shutter:
