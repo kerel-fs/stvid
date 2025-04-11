@@ -9,6 +9,8 @@ import datetime
 import argparse
 import warnings
 
+from functools import partial
+
 from termcolor import colored
 
 import multiprocessing as mp
@@ -45,7 +47,7 @@ def chunk_list(l, n):
         o.append(l[i:i + n])
     return o
 
-def process_loop(fname):
+def process_loop(cfg, acat, cal_header, abbrevs, tlefiles, fname):
     """
     Thread to process satobs FourFrame FITS files in a multi-thread compatible manner
     """
@@ -205,7 +207,8 @@ def process_loop(fname):
 
     return (screenoutput, screenoutput_idents)
 
-if __name__ == "__main__":
+
+def main():
     # Read commandline options
     conf_parser = argparse.ArgumentParser(description="Process captured" +
                                           " video frames.")
@@ -333,7 +336,8 @@ if __name__ == "__main__":
         try:
             chunks = chunk_list(fnames, cpu_count)
             for chunk in chunks:
-                for result in p.map(process_loop, chunk):
+                _process_loop = partial(process_loop, cfg, acat, cal_header, abbrevs, tlefiles)
+                for result in p.map(_process_loop, chunk):
                     (screenoutput, screenoutput_idents) = result
 
                     if screenoutput is not None:
@@ -355,3 +359,7 @@ if __name__ == "__main__":
             time.sleep(args.wait)
         except KeyboardInterrupt:
             sys.exit()
+
+
+if __name__ == "__main__":
+    main()
