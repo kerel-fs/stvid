@@ -558,9 +558,10 @@ def main():
     conf_parser.add_argument("-t", "--test",
                              nargs="?",
                              action="store",
-                             default=False,
-                             help="Testing mode - Start capturing immediately for (optional) seconds",
-                             metavar="s")
+                             default=None,
+                             const=31,
+                             help="Testing mode - Start capturing immediately for (optional) X seconds (default: 31 s)",
+                             metavar="X")
     conf_parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
                              default='INFO', help='Set the log level (default: INFO)')
     conf_parser.add_argument("-l", "--live", action="store_true",
@@ -600,23 +601,17 @@ def main():
     # Process commandline options
 
     # Testing mode
-    if args.test is None:
-        test_duration = 31
-        testing = True
-    elif args.test is not False:
-        test_duration = int(args.test)
-        testing = True
-    else:
-        testing = False
+    testing = args.test is not None
     logger.info("Test mode: %s" % testing)
-    if (testing):
-        logger.info("Test duration: %ds" % test_duration)
 
     # Live mode
     live = True if args.live else False
     logger.info("Live mode: %s" % live)
 
     if testing:
+        test_duration = int(args.test)
+        logger.info("Test duration: %ds" % test_duration)
+
         tnow = Time.now()
         tend = tnow + test_duration * u.s
         run_acquisition(cfg, path, live, tend)
