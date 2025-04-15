@@ -47,6 +47,64 @@ def chunk_list(l, n):
         o.append(l[i:i + n])
     return o
 
+
+def run_calibration(cfg, file_dir, batch, wait):
+    """
+    Run loop until a callibration succeeds. If there is no new data,
+    wait the specified amount of time and then check for new data.
+
+    If in batch mode, the application is terminated if no calibration can be done.
+    """
+
+    nstarsmin = cfg.getint("Astrometry", "min_stars")
+    calfname = os.path.join(file_dir, "test.fits")
+
+    # Start calibration loop
+    solved = False
+    while True:
+        # Get files without star catalogs
+        fitsfnames = sorted(glob.glob(os.path.join(file_dir, "2*.fits")))
+        froots = [os.path.splitext(fitsname)[0] for fitsname in fitsfnames]
+        fnames = [f"{froot}.fits" for froot in froots if not os.path.exists(f"{froot}_stars.cat")]
+
+        # Create reference calibration file
+        if os.path.exists(calfname):
+            # test.fits exists, so calibration has been solved
+            solved = True
+            break
+
+        # Loop over files to find a suitable calibration file
+        for fname in fnames:
+            # Generate star catalog
+            scat = calibration.generate_star_catalog(fname)
+
+            # Solve
+            if scat.nstars > nstarsmin:
+                print(colored(f"Computing astrometric calibration for {fname}", "yellow"))
+                cal_header = calibration.plate_solve(fname, cfg, calfname)
+                if cal_header is not None:
+                    solved = True
+
+            if solved:
+                break
+
+        if solved:
+            break
+
+        try:
+            if(batch):
+                sys.exit()
+            print("File queue empty, waiting for new files...\r", end = "")
+            time.sleep(wait)
+        except KeyboardInterrupt:
+            sys.exit()
+
+    print("Calibration succeeded!")
+    # Read calibration
+    cal_header = calibration.read_calibration_header(calfname)
+    return cal_header
+
+
 def process_loop(cfg, acat, cal_header, abbrevs, tlefiles, fname):
     """
     Thread to process satobs FourFrame FITS files in a multi-thread compatible manner
@@ -244,9 +302,6 @@ def main():
     warnings.filterwarnings("ignore", category=UserWarning, append=True)
     warnings.simplefilter("ignore", AstropyWarning)
 
-    # Observer settings
-    nstarsmin = cfg.getint("Astrometry", "min_stars")
-
     # Extract abbrevs for TLE files
     abbrevs, tlefiles = [], []
     for key, value in cfg.items("Elements"):
@@ -265,53 +320,24 @@ def main():
     # Read astrometric catalog
     acat = AstrometricCatalog(cfg.getfloat("Astrometry", "max_magnitude"))
 
-    # Start calibration loop
-    while True:
-        # Get files without star catalogs
-        fitsfnames = sorted(glob.glob(os.path.join(args.file_dir, "2*.fits")))
-        froots = [os.path.splitext(fitsname)[0] for fitsname in fitsfnames]
-        fnames = [f"{froot}.fits" for froot in froots if not os.path.exists(f"{froot}_stars.cat")]
+    # Read initial calibration
+    calfname = os.path.join(args.file_dir, "test.fits")
+    if os.path.exists(calfname):
+        # calibration has been solved before,
+        # read existing calibration
 
-        # Create reference calibration file
-        calfname = os.path.join(args.file_dir, "test.fits")
-        if not os.path.exists(calfname):
-            solved = False
-            wref = None
+        cal_header = calibration.read_calibration_header(calfname)
+        print("Existing calibration found!")
+    else:
+        # Calibration has not been solved yet,
+        # start calibration loop
 
-            # Loop over files to find a suitable calibration file
-            for fname in fnames:
-                # Generate star catalog
-                scat = calibration.generate_star_catalog(fname)
-
-                # Solve
-                if scat.nstars > nstarsmin:
-                    print(colored(f"Computing astrometric calibration for {fname}", "yellow"))
-                    cal_header = calibration.plate_solve(fname, cfg, calfname)
-                    if cal_header is not None:
-                        solved = True
-
-                # Break when solved
-                if solved:
-                    break
-        else:
-            # test.fits exists, so calibration has been solved
-            solved = True
-
-        # Break when solved
-        if solved:
-            print("Calibration succeeded!")
-            break
-
-        try:
-            if(args.batch):
-                sys.exit()
-            print("File queue empty, waiting for new files...\r", end = "")
-            time.sleep(args.wait)
-        except KeyboardInterrupt:
-            sys.exit()
-
-    # Read calibration
-    cal_header = calibration.read_calibration_header(calfname)
+        cal_header = run_calibration(
+            cfg,
+            args.file_dir,
+            args.batch,
+            args.wait,
+        )
 
     # Get number of CPUs for multiprocessing
     if not args.cpu_count:
