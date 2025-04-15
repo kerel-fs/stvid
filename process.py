@@ -88,7 +88,7 @@ def process_loop(cfg, acat, cal_header, abbrevs, tlefiles, fname):
 
     # Skip if png exists
     if os.path.exists(f"{froot}_0.png"):
-        return
+        return None, []
 
     # Read Fourframe
     ff = FourFrame(fname, cfg)
