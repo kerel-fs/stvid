@@ -49,6 +49,8 @@ def process_loop(fname):
     """
     Thread to process satobs FourFrame FITS files in a multi-thread compatible manner
     """
+    # Load initial calibration
+    wref, tref = calibration.calibration_from_header(cal_header)
 
     # File root
     froot = os.path.splitext(fname)[0]
@@ -281,8 +283,8 @@ if __name__ == "__main__":
                 # Solve
                 if scat.nstars > nstarsmin:
                     print(colored(f"Computing astrometric calibration for {fname}", "yellow"))
-                    wref, tref = calibration.plate_solve(fname, cfg, calfname)
-                    if wref is not None:
+                    cal_header = calibration.plate_solve(fname, cfg, calfname)
+                    if cal_header is not None:
                         solved = True
 
                 # Break when solved
@@ -306,7 +308,7 @@ if __name__ == "__main__":
             sys.exit()
 
     # Read calibration
-    wref, tref = calibration.read_calibration(calfname)
+    cal_header = calibration.read_calibration_header(calfname)
 
     # Get number of CPUs for multiprocessing
     if not args.cpu_count:

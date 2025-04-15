@@ -101,7 +101,10 @@ def read_star_catalog(fname):
     return StarCatalog(outfname)
 
 
-def plate_solve(fname, cfg, store_as_fname=None):
+def plate_solve(fname, cfg, calfname=None):
+    """
+    Returns: FITS header
+    """
     # Arguments for solve-field
     if cfg.has_option("Astrometry", "solve-field_args"):
         cmd_args = cfg.get("Astrometry", "solve-field_args")
@@ -120,26 +123,19 @@ def plate_solve(fname, cfg, store_as_fname=None):
 
         # Read header
         hdu = fits.open(f"{froot}.new")
-        hdr = hdu[0].header
-        data = hdu[0].data
-        hdu[0].header["NAXIS"] = 2
-        w = wcs.WCS(hdu[0].header)
-        t = Time(hdu[0].header["MJD-OBS"], format="mjd", scale="utc")
+        cal_header = hdu[0].header.copy()
+        cal_data = hdu[0].data
+        cal_header["NAXIS"] = 2
         hdu.close()
     except OSError:
-        w, t = None, None
+        cal_header = None
+        cal_data = None
     except subprocess.CalledProcessError as err:
         print(colored("ERROR: ", "red", attrs=["bold"]) + "solve-field failed.")
         print("Command: " + colored(command, "cyan"))
         print("Output:")
         print(colored(err.output.decode('ascii'), "cyan"))
         sys.exit(-1)
-
-    # Solved
-    if w is not None:
-        solved = True
-    else:
-        solved = False
 
     # Remove temporary files
     extensions = [".new", ".axy", "-objs.png", ".rdls", ".solved", "-indx.xyls",
@@ -150,22 +146,32 @@ def plate_solve(fname, cfg, store_as_fname=None):
         except OSError:
             pass
 
+    # Solved
+    solved = cal_header is not None
+
+    if not solved:
+        return None
+
     # Store calibrated file
-    if solved and store_as_fname is not None:
-        hdu = fits.PrimaryHDU(header=hdr, data=data)
-        hdu.writeto(store_as_fname, overwrite=True, output_verify="ignore")
+    if calfname is not None:
+        hdu = fits.PrimaryHDU(header=cal_header, data=cal_data)
+        hdu.writeto(calfname, overwrite=True, output_verify="ignore")
 
-    return w, t
+    return cal_header
 
 
-def read_calibration(fname):
+def read_calibration_header(fname):
     hdu = fits.open(fname)
     hdu[0].header["NAXIS"] = 2
-    header = hdu[0].header.copy()
+    cal_header = hdu[0].header.copy()
     hdu.close()
 
-    wref = wcs.WCS(header)
-    tref = Time(header["MJD-OBS"], format="mjd", scale="utc")
+    return cal_header
+
+
+def calibration_from_header(cal_header):
+    wref = wcs.WCS(cal_header)
+    tref = Time(cal_header["MJD-OBS"], format="mjd", scale="utc")
 
     return wref, tref
 
