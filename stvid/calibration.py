@@ -157,15 +157,18 @@ def plate_solve(fname, cfg, store_as_fname=None):
 
     return w, t
 
+
 def read_calibration(fname):
-    # Read header
     hdu = fits.open(fname)
     hdu[0].header["NAXIS"] = 2
-    w = wcs.WCS(hdu[0].header)
-    t = Time(hdu[0].header["MJD-OBS"], format="mjd", scale="utc")
+    header = hdu[0].header.copy()
     hdu.close()
 
-    return w, t
+    wref = wcs.WCS(header)
+    tref = Time(header["MJD-OBS"], format="mjd", scale="utc")
+
+    return wref, tref
+
 
 def calibrate(fname, cfg, astcat, pixcat, wref, tref):
     # Read FITS
