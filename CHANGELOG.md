@@ -1,4 +1,26 @@
 # Changelog
+## kerel-2025-04-15
+This release is done in the fork [kerel-fs/stvid](https://github.com/kerel-fs/stvid).
+
+### Improvements
+- acquire: Add shutter control
+- acquire: Allow running continuously for multiple days
+- acquire: Add (optional) monitoring metrics via prometheus
+- acquire: Add `--log-level` CLI argument
+- acquire: Show module name in log output
+- update_tle: Add support for multiple config files (commit 2e7c57f: Unify config loading)
+- calibration: Improve error handling for solve-field invocation
+
+### Fixes
+- fix FK5 to ICRS conversion (by Eelke Visser)
+- acquire: Fix MemoryError logging
+
+### Other Changes
+- Unify config loading
+- Minor code style improvements
+
+Contributors: Eelke Visser, Fabian P. Schmidt
+
 ## dev-20230421
 ### Breaking Changes
 No breaking changes.
