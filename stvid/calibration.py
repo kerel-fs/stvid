@@ -24,14 +24,14 @@ class AstrometricCatalog:
             os.path.dirname(__file__),
             "..",
             "data/tyc2.fits"))
-        
+
         # Read catalog
         hdu = fits.open(fname)
         ra = hdu[1].data.field("RA")
         dec = hdu[1].data.field("DEC")
         mag = hdu[1].data.field("MAG_VT")
         hdu.close()
-        
+
         # Select stars
         c = mag < maxmag
 
@@ -85,11 +85,11 @@ def generate_star_catalog(fname):
         # Add sextractor config path to environment
         env = dict(os.environ)
         env["SEXTRACTOR_CFG"] = path
-        
+
         # Run sextractor
         output = subprocess.check_output(command, shell=True, env=env,
                                          stderr=subprocess.STDOUT)
-            
+
     return StarCatalog(outfname)
 
 
@@ -110,7 +110,7 @@ def plate_solve(fname, cfg, store_as_fname=None):
 
     # File root
     froot = os.path.splitext(fname)[0]
-        
+
     # Generate command
     command = f"solve-field {cmd_args} {fname}"
 
@@ -140,7 +140,7 @@ def plate_solve(fname, cfg, store_as_fname=None):
         solved = True
     else:
         solved = False
-        
+
     # Remove temporary files
     extensions = [".new", ".axy", "-objs.png", ".rdls", ".solved", "-indx.xyls",
                   ".match", ".corr", ".wcs", "-indx.png", "-ngc.png"]
@@ -154,7 +154,7 @@ def plate_solve(fname, cfg, store_as_fname=None):
     if solved and store_as_fname is not None:
         hdu = fits.PrimaryHDU(header=hdr, data=data)
         hdu.writeto(store_as_fname, overwrite=True, output_verify="ignore")
-        
+
     return w, t
 
 def read_calibration(fname):
@@ -187,7 +187,7 @@ def calibrate(fname, cfg, astcat, pixcat, wref, tref):
 
     # Copy WCS
     w = wref.deepcopy()
-        
+
     # Apply tracking
     if not tracked:
         # Reference position
@@ -208,20 +208,20 @@ def calibrate(fname, cfg, astcat, pixcat, wref, tref):
         # Log calibration
         with open(outfname, "w") as fp:
             pass
-        
+
         return w, 0, 0, 0, False
-        
+
     # Image size
     nx, ny = header["NAXIS1"], header["NAXIS2"]
 
     # Sky coordinates for astrometric standards
     p = SkyCoord(ra=astcat.ra, dec=astcat.dec, unit="deg", frame="fk5")
-    
+
     # Pixel coordinates
     x, y = pixcat.x, pixcat.y
 
     # Settings
-    rmin = 120 
+    rmin = 120
     order = 1
     niter = 10
     rmsx, rmsy = 0, 0
@@ -233,7 +233,7 @@ def calibrate(fname, cfg, astcat, pixcat, wref, tref):
         idx, r, _ = pc.match_to_catalog_sky(p)
         c = r < rmin * u.arcsec
         nstars_used = np.sum(c)
-        
+
         # Refit
         if nstars_used > 4:
             w = fit_wcs(x[c], y[c], p[idx[c]].ra.degree,
@@ -242,7 +242,7 @@ def calibrate(fname, cfg, astcat, pixcat, wref, tref):
             # Compute residuals
             rx, ry = residuals(x[c], y[c], p[idx[c]].ra.degree, p[idx[c]].dec.degree, w)
 
-            r = np.sqrt(rx**2 + ry**2)        
+            r = np.sqrt(rx**2 + ry**2)
             rms = np.sqrt(np.sum(r**2) / r.size)
             rmsx, rmsy = np.std(rx), np.std(ry)
             rmin = 2 * rms
@@ -255,7 +255,7 @@ def calibrate(fname, cfg, astcat, pixcat, wref, tref):
         ctype1, ctype2 = "RA---TAN-SIP", "DEC--TAN-SIP"
     else:
         ctype1, ctype2 = "RA---TAN", "DEC--TAN"
-             
+
     # Keywords to add
     whdr = {"CRPIX1": w.wcs.crpix[0], "CRPIX2": w.wcs.crpix[1],
             "CRVAL1": w.wcs.crval[0], "CRVAL2": w.wcs.crval[1],
@@ -297,7 +297,7 @@ def calibrate(fname, cfg, astcat, pixcat, wref, tref):
     # Log calibration
     with open(outfname, "w") as fp:
         pass
-        
+
     return w, rmsx, rmsy, nstars_used, is_calibrated
 
 def solve_linear_equation(a, b):
@@ -339,7 +339,7 @@ def fit_wcs(x, y, ra, dec, x0, y0, order):
         if ix[i] + iy[i]>=2:
             p = np.matmul(cdinv, np.array([ax[i], ay[i]]))
             axm[iy[i], ix[i]] = p[0]
-            aym[iy[i], ix[i]] = p[1]    
+            aym[iy[i], ix[i]] = p[1]
 
     w = wcs.WCS(naxis=2)
     w.wcs.cd = cd
@@ -350,7 +350,7 @@ def fit_wcs(x, y, ra, dec, x0, y0, order):
         w.sip = wcs.Sip(axm.T, aym.T, None, None, w.wcs.crpix)
     else:
         w.wcs.ctype = ["RA---TAN", "DEC--TAN"]
-        
+
     return w
 
 def residuals(xcen, ycen, ra, dec, w):
