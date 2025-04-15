@@ -292,9 +292,6 @@ if __name__ == "__main__":
             # test.fits exists, so calibration has been solved
             solved = True
 
-            # Read calibration
-            wref, tref = calibration.read_calibration(calfname)
-
         # Break when solved
         if solved:
             print("Calibration succeeded!")
@@ -307,6 +304,9 @@ if __name__ == "__main__":
             time.sleep(args.wait)
         except KeyboardInterrupt:
             sys.exit()
+
+    # Read calibration
+    wref, tref = calibration.read_calibration(calfname)
 
     # Get number of CPUs for multiprocessing
     if not args.cpu_count:
