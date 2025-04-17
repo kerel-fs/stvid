@@ -9,14 +9,18 @@ import multiprocessing
 from astropy.coordinates import EarthLocation
 from astropy.time import Time
 from astropy.io import fits
+from prometheus_client import start_http_server
+
 import astropy.units as u
 from stvid.utils import get_sunset_and_sunrise
 from stvid.config import add_argument_conf_file, load_config
+from stvid.metrics import AcquisitionMainMetrics
 import logging
 import configparser
 import argparse
 
 logger = logging.getLogger()
+METRICS = AcquisitionMainMetrics()
 
 
 # Capture images from pi
@@ -590,6 +594,10 @@ def main():
     logger.addHandler(consoleHandler)
     logger.setLevel(args.log_level)
 
+    if "Monitoring" in cfg.sections() and cfg.getboolean("Monitoring", "enabled"):
+        # Start Prometheus HTTP server, to export metrics
+        start_http_server(cfg.getint("Monitoring", "port"))
+
     # Process commandline options
 
     # Testing mode
@@ -664,6 +672,7 @@ def run_acquisition(cfg, path, live, tend):
     """
     logger.info("Starting data acquisition")
     logger.info("Acquisition will end after "+tend.isot)
+    METRICS.acquisition_status.set(1)
 
     # Get camera type
     camera_type = cfg.get("Setup", "camera_type")
@@ -714,6 +723,7 @@ def run_acquisition(cfg, path, live, tend):
     try:
         if shutter:
             shutter.open_shutter()
+            METRICS.shutter_state.set(1)
 
         # Start
         pcapture.start()
@@ -735,8 +745,11 @@ def run_acquisition(cfg, path, live, tend):
         if live is True:
             cv2.destroyAllWindows()
     finally:
+        METRICS.acquisition_status.set(0)
+
         if shutter:
             shutter.close_shutter()
+            METRICS.shutter_state.set(0)
 
 
 if __name__ == '__main__':
