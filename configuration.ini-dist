@@ -90,7 +90,3 @@ solve-field_args = -O -l 10 -z 2 -t 1 --crpix-center # Solve-field arguments
 
 [Shutter]
 pin = 19                  # GPIO Pin for satnogs-eye shutter
-
-[Monitoring]
-enabled = False           # Enable Prometheus metrics export
-port = 9090               # HTTP port for Prometheus metrics export
