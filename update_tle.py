@@ -13,14 +13,7 @@ from spacetrack import SpaceTrackClient
 from stvid.config import add_argument_conf_file, load_config
 
 
-def main():
-    conf_parser = argparse.ArgumentParser(description="Update TLEs from" +
-                                                      " online sources")
-    conf_parser = add_argument_conf_file(conf_parser)
-    args = conf_parser.parse_args()
-
-    cfg = load_config(args.conf_files)
-
+def update_tle(cfg):
     # Create TLE location
     tle_path = cfg.get("Elements", "tlepath")
     if not os.path.exists(tle_path):
@@ -110,6 +103,17 @@ def main():
         for fname in catalogs:
             with open(fname) as infile:
                 outfile.write(infile.read())
+
+
+def main():
+    conf_parser = argparse.ArgumentParser(description="Update TLEs from" +
+                                                      " online sources")
+    conf_parser = add_argument_conf_file(conf_parser)
+    args = conf_parser.parse_args()
+
+    cfg = load_config(args.conf_files)
+
+    update_tle(cfg)
 
 
 if __name__ == '__main__':
