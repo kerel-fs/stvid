@@ -13,7 +13,7 @@ from spacetrack import SpaceTrackClient
 from stvid.config import add_argument_conf_file, load_config
 
 
-if __name__ == '__main__':
+def main():
     conf_parser = argparse.ArgumentParser(description="Update TLEs from" +
                                                       " online sources")
     conf_parser = add_argument_conf_file(conf_parser)
@@ -110,3 +110,7 @@ if __name__ == '__main__':
         for fname in catalogs:
             with open(fname) as infile:
                 outfile.write(infile.read())
+
+
+if __name__ == '__main__':
+    main()
