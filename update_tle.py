@@ -101,9 +101,9 @@ if __name__ == '__main__':
     lines = resp.read().decode("utf-8")
     with open(oneweb_tle, "w") as fp:
         fp.write(lines)
- 
+
     copyfile(oneweb_tle, os.path.join(tle_path, time + "_oneweb.txt"))
-    
+
     print("Create bulk catalog")
     catalogs = [catalog_tle, classfd_tle]
     with open(os.path.join(tle_path, "bulk.tle"), "w") as outfile:
