@@ -3,6 +3,8 @@ import re
 import os
 import datetime
 import argparse
+import time
+import sys
 
 from io import BytesIO
 from shutil import copyfile
@@ -105,15 +107,34 @@ def update_tle(cfg):
                 outfile.write(infile.read())
 
 
+def wait_n_seconds(n):
+    print(f"Waiting {n:.0f} seconds.")
+    try:
+        time.sleep(n)
+    except KeyboardInterrupt:
+        sys.exit()
+
+
 def main():
     conf_parser = argparse.ArgumentParser(description="Update TLEs from" +
                                                       " online sources")
     conf_parser = add_argument_conf_file(conf_parser)
+    conf_parser.add_argument('--repeat', nargs='?', action='store',
+        default=None, const=12, help=(
+            'Optionally repeat update every N hours (default N=12).'
+        ),
+    )
     args = conf_parser.parse_args()
 
     cfg = load_config(args.conf_files)
 
-    update_tle(cfg)
+    if args.repeat is None:
+        update_tle(cfg)
+    else:
+        n = float(args.repeat) * 60 * 60
+        while True:
+            update_tle(cfg)
+            wait_n_seconds(n)
 
 
 if __name__ == '__main__':
