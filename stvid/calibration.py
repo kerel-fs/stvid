@@ -3,6 +3,7 @@ import os
 
 import subprocess
 import sys
+import warnings
 
 import numpy as np
 
@@ -45,7 +46,10 @@ class StarCatalog:
 
     def __init__(self, fname):
         # Load catalog
-        d = np.loadtxt(fname)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            d = np.loadtxt(fname)
+
         if len(d.shape) == 2:
             self.x = d[:, 0]
             self.y = d[:, 1]
