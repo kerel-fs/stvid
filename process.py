@@ -243,13 +243,9 @@ def process_loop(cfg, acat, cal_header, abbrevs, tlefiles, fname):
         with open(outfname, "w") as fp:
             for iod_line in o.iod_lines:
                 fp.write(f"{iod_line}\n")
-        if o.catalogname == "classfd":
-            color = "blue"
-        elif o.catalogname == "unid":
-            color = "magenta"
-        else:
-            color = "grey"
-        screenoutput_idents.append(colored(o.iod_line, color))
+
+        text = f"[{o.catalogname:10s}] {o.iod_line}"
+        screenoutput_idents.append(text)
 
     # Generate plots
     ff.diagnostic_plot(predictions, None, None, cfg)
